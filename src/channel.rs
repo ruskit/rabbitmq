@@ -3,7 +3,7 @@
 // All rights reserved.
 
 use crate::errors::AmqpError;
-use configs::{Configs, DynamicConfigs};
+use configs::{configs::Configs, dynamic::DynamicConfigs};
 use lapin::{types::LongString, Channel, Connection, ConnectionProperties};
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -18,8 +18,16 @@ where
     let options = ConnectionProperties::default()
         .with_connection_name(LongString::from(cfg.app.name.clone()));
 
-    let uri = &cfg.rabbitmq_uri();
-    let conn = match Connection::connect(uri, options).await {
+    let uri = format!(
+        "amqp://{}:{}@{}:{}/{}",
+        cfg.rabbitmq.user,
+        cfg.rabbitmq.password,
+        cfg.rabbitmq.host,
+        cfg.rabbitmq.port,
+        cfg.rabbitmq.vhost
+    );
+
+    let conn = match Connection::connect(&uri, options).await {
         Ok(c) => Ok(c),
         Err(err) => {
             error!(error = err.to_string(), "failure to connect");

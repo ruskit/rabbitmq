@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 configs = { git = "ssh://git@github.com/ruskit/configs.git", rev = "beta-v0.0.4" }
-messaging = { path = "../messaging" }
+messaging = { git = "ssh://git@github.com/ruskit/messaging.git", rev = "beta-v0.0.0" }
 traces = { git = "ssh://git@github.com/ruskit/traces.git", rev = "beta-v0.0.0" }
 
 lapin = { version = "2.5.3" }

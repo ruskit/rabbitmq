@@ -32,8 +32,6 @@ pub(crate) async fn consume<'c>(
     let (ctx, mut span) = otel::new_span(&delivery.properties, tracer, &msg_type);
 
     debug!(
-        trace.id = traces::trace_id(&ctx),
-        span.id = traces::span_id(&ctx),
         "received: {} - exchange: {}",
         msg_type,
         delivery.exchange.to_string(),
@@ -46,12 +44,7 @@ pub(crate) async fn consume<'c>(
             description: Cow::from(msg),
         });
 
-        debug!(
-            trace.id = traces::trace_id(&ctx),
-            span.id = traces::span_id(&ctx),
-            "{}",
-            msg
-        );
+        debug!("{}", msg);
 
         if let Err(e) = delivery.ack(BasicAckOptions { multiple: false }).await {
             error!("error whiling ack msg");
@@ -76,11 +69,7 @@ pub(crate) async fn consume<'c>(
         debug!("message successfully processed");
         match delivery.ack(BasicAckOptions { multiple: false }).await {
             Err(e) => {
-                error!(
-                    trace.id = traces::trace_id(&ctx),
-                    span.id = traces::span_id(&ctx),
-                    "error whiling ack msg"
-                );
+                error!("error whiling ack msg");
                 span.record_error(&e);
                 span.set_status(Status::Error {
                     description: Cow::from("error to ack msg"),
@@ -105,11 +94,7 @@ pub(crate) async fn consume<'c>(
         {
             Ok(_) => return Ok(()),
             Err(e) => {
-                error!(
-                    trace.id = traces::trace_id(&ctx),
-                    span.id = traces::span_id(&ctx),
-                    "error whiling nack msg"
-                );
+                error!("error whiling nack msg");
                 span.record_error(&e);
                 span.set_status(Status::Error {
                     description: Cow::from("error to nack msg"),
@@ -121,11 +106,7 @@ pub(crate) async fn consume<'c>(
 
     //send msg to retry when handler failure and the retry count Dont active the max of the retries configured
     if count < dispatcher_def.queue_def.retries.unwrap() as i64 {
-        warn!(
-            trace.id = traces::trace_id(&ctx),
-            span.id = traces::span_id(&ctx),
-            "error whiling handling msg, requeuing for latter"
-        );
+        warn!("error whiling handling msg, requeuing for latter");
         match delivery
             .nack(BasicNackOptions {
                 multiple: false,
@@ -135,11 +116,7 @@ pub(crate) async fn consume<'c>(
         {
             Ok(_) => return Ok(()),
             Err(e) => {
-                error!(
-                    trace.id = traces::trace_id(&ctx),
-                    span.id = traces::span_id(&ctx),
-                    "error whiling requeuing"
-                );
+                error!("error whiling requeuing");
                 span.record_error(&e);
                 span.set_status(Status::Error {
                     description: Cow::from("error to requeuing msg"),
@@ -150,11 +127,7 @@ pub(crate) async fn consume<'c>(
     }
 
     //send msg to dlq when count active the max retries
-    error!(
-        trace.id = traces::trace_id(&ctx),
-        span.id = traces::span_id(&ctx),
-        "too many attempts, sending to dlq"
-    );
+    error!("too many attempts, sending to dlq");
 
     match channel
         .basic_publish(
@@ -167,11 +140,7 @@ pub(crate) async fn consume<'c>(
         .await
     {
         Err(e) => {
-            error!(
-                trace.id = traces::trace_id(&ctx),
-                span.id = traces::span_id(&ctx),
-                "error whiling sending to dlq"
-            );
+            error!("error whiling sending to dlq");
             span.record_error(&e);
             span.set_status(Status::Error {
                 description: Cow::from("msg was sent to dlq"),
@@ -181,11 +150,7 @@ pub(crate) async fn consume<'c>(
         }
         _ => match delivery.ack(BasicAckOptions { multiple: false }).await {
             Err(e) => {
-                error!(
-                    trace.id = traces::trace_id(&ctx),
-                    span.id = traces::span_id(&ctx),
-                    "error whiling ack msg to default queue"
-                );
+                error!("error whiling ack msg to default queue");
                 span.record_error(&e);
                 span.set_status(Status::Error {
                     description: Cow::from("msg was sent to dlq"),
