@@ -1,0 +1,23 @@
+[package]
+name = "rabbitmq"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+configs = { git = "ssh://git@github.com/ruskit/configs.git", rev = "beta-v0.0.4" }
+messaging = { path = "../messaging" }
+traces = { git = "ssh://git@github.com/ruskit/traces.git", rev = "beta-v0.0.0" }
+
+lapin = { version = "2.5.3" }
+opentelemetry = { version = "0.29.1"}
+uuid = { version = "1.17.0", features = ["v4"] }
+async-trait = { version = "0.1.88"}
+tracing = { version = "0.1.41" }
+serde_json = { version = "1.0.140" }
+serde = { version = "1.0.219", features = ["derive"] }
+tokio = { version = "1.45.0", features = ["default"] }
+futures-util = { version = "0.3.31"}
+thiserror = { version = "2.0.12" }
+
+[dev-dependencies]
+mockall = { version = "0.13.1" }
