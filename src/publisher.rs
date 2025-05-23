@@ -2,6 +2,12 @@
 // MIT License
 // All rights reserved.
 
+//! # RabbitMQ Message Publisher
+//!
+//! This module provides functionality for publishing messages to RabbitMQ exchanges.
+//! It implements the `Publisher` trait from the messaging abstraction library,
+//! supporting OpenTelemetry tracing for distributed request tracking.
+
 use crate::otel::RabbitMQTracePropagator;
 use async_trait::async_trait;
 use lapin::{
@@ -23,13 +29,25 @@ use std::{
 use tracing::error;
 use uuid::Uuid;
 
+/// Default content type for JSON messages
 pub const JSON_CONTENT_TYPE: &str = "application/json";
 
+/// RabbitMQ implementation of the Publisher trait.
+///
+/// This publisher sends messages to RabbitMQ exchanges, with support for
+/// message headers, routing keys, and OpenTelemetry context propagation.
 pub struct RabbitMQPublisher {
     channel: Arc<Channel>,
 }
 
 impl RabbitMQPublisher {
+    /// Creates a new RabbitMQ publisher.
+    ///
+    /// # Parameters
+    /// * `channel` - A channel to the RabbitMQ server
+    ///
+    /// # Returns
+    /// An Arc-wrapped RabbitMQPublisher instance for thread-safe sharing
     pub fn new(channel: Arc<Channel>) -> Arc<RabbitMQPublisher> {
         Arc::new(RabbitMQPublisher { channel })
     }
@@ -37,6 +55,18 @@ impl RabbitMQPublisher {
 
 #[async_trait]
 impl Publisher for RabbitMQPublisher {
+    /// Publishes a message to RabbitMQ.
+    ///
+    /// This method publishes a message to the specified exchange with the given
+    /// routing key, message type, and payload. It also propagates OpenTelemetry
+    /// trace context in the message headers for distributed tracing.
+    ///
+    /// # Parameters
+    /// * `ctx` - OpenTelemetry context for tracing
+    /// * `infos` - Message details including payload, exchange, routing key, etc.
+    ///
+    /// # Returns
+    /// Ok(()) on success or MessagingError on failure
     async fn publish(&self, ctx: &Context, infos: &PublishMessage) -> Result<(), MessagingError> {
         let mut btree = BTreeMap::<ShortString, AMQPValue>::default();
 
@@ -78,6 +108,14 @@ impl Publisher for RabbitMQPublisher {
 }
 
 impl RabbitMQPublisher {
+    /// Converts a HashMap of header values to a BTreeMap of AMQP values.
+    ///
+    /// This internal method handles the conversion between the generic HeaderValues
+    /// from the messaging abstraction and the specific AMQPValue types needed by RabbitMQ.
+    ///
+    /// # Parameters
+    /// * `hash_map` - HashMap of header values from PublishMessage
+    /// * `btree` - BTreeMap to populate with AMQP values
     fn btree_map(
         &self,
         hash_map: &HashMap<String, HeaderValues>,

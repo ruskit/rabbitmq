@@ -2,6 +2,13 @@
 // MIT License
 // All rights reserved.
 
+//! # RabbitMQ Message Consumer
+//!
+//! This module provides functionality for consuming and processing messages from RabbitMQ.
+//! It implements the core message consumption logic, including error handling, retry mechanism,
+//! and Dead Letter Queue (DLQ) integration. The module also supports OpenTelemetry for
+//! distributed tracing.
+
 use crate::{dispatcher::RabbitMQDispatcherDefinition, errors::AmqpError, otel};
 use lapin::{
     message::Delivery,
@@ -18,9 +25,29 @@ use opentelemetry::{
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 use tracing::{debug, error, warn};
 
+/// Constant for the x-death header used in RabbitMQ's dead-lettering mechanism
 pub const AMQP_HEADERS_X_DEATH: &str = "x-death";
+/// Constant for the count field in the x-death header
 pub const AMQP_HEADERS_COUNT: &str = "count";
 
+/// Consumes and processes a message from RabbitMQ.
+///
+/// This function is the core of the message consumption process. It:
+/// 1. Extracts message type and retry count from headers
+/// 2. Creates a trace span for distributed tracing
+/// 3. Finds the appropriate handler for the message type
+/// 4. Processes the message using the handler
+/// 5. Handles successful processing with acknowledgment
+/// 6. Handles failures with retry or DLQ routing
+///
+/// # Parameters
+/// * `tracer` - OpenTelemetry tracer for creating spans
+/// * `delivery` - The RabbitMQ delivery containing the message
+/// * `defs` - Map of dispatcher definitions for routing messages to handlers
+/// * `channel` - Channel for acknowledging messages and publishing to DLQ
+///
+/// # Returns
+/// Ok(()) on success or AmqpError on failure
 pub(crate) async fn consume<'c>(
     tracer: &BoxedTracer,
     delivery: &Delivery,
@@ -83,7 +110,7 @@ pub(crate) async fn consume<'c>(
         }
     }
 
-    //ack msg and remove from queue if handler failure and there are no fallback configured or send to dlq
+    // Ack msg and remove from queue if handler failure and there are no fallback configured or send to dlq
     if dispatcher_def.queue_def.retry_name.is_none() {
         match delivery
             .nack(BasicNackOptions {
@@ -104,7 +131,7 @@ pub(crate) async fn consume<'c>(
         }
     }
 
-    //send msg to retry when handler failure and the retry count Dont active the max of the retries configured
+    // Send msg to retry when handler failure and the retry count doesn't reach the max of the retries configured
     if count < dispatcher_def.queue_def.retries.unwrap() as i64 {
         warn!("error whiling handling msg, requeuing for latter");
         match delivery
@@ -126,7 +153,7 @@ pub(crate) async fn consume<'c>(
         }
     }
 
-    //send msg to dlq when count active the max retries
+    // Send msg to DLQ when count reaches the max retries
     error!("too many attempts, sending to dlq");
 
     match channel
@@ -163,6 +190,17 @@ pub(crate) async fn consume<'c>(
     }
 }
 
+/// Extracts message type and retry count from message properties.
+///
+/// This function parses the RabbitMQ message properties to extract:
+/// 1. The message type from the "kind" property
+/// 2. The retry count from the x-death header
+///
+/// # Parameters
+/// * `props` - RabbitMQ message properties
+///
+/// # Returns
+/// A tuple containing (message_type, retry_count)
 fn extract_header_properties(props: &AMQPProperties) -> (String, i64) {
     let headers = match props.headers() {
         Some(val) => val.to_owned(),
